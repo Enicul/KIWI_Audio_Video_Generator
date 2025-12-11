@@ -174,27 +174,37 @@ Return ONLY valid JSON, no markdown formatting."""
     async def generate_video_prompt(self, intent: Dict[str, Any]) -> str:
         """
         Generate an optimized prompt for Veo video generation.
+        IMPORTANT: Must stay faithful to the user's original request.
         """
         if not self._initialized or not self.client:
             return self._fallback_video_prompt(intent)
         
+        original_input = intent.get('original_input', '')
+        
         try:
-            prompt = f"""Create an optimal video generation prompt for Veo based on this intent:
+            prompt = f"""You are a video prompt generator. Your task is to convert the user's request into a clear video description for AI video generation.
 
-Topic: {intent.get('topic', 'general')}
-Type: {intent.get('video_type', 'short video')}
-Style: {intent.get('style', 'cinematic')}
-Mood: {intent.get('mood', 'engaging')}
-Key elements: {', '.join(intent.get('key_elements', []))}
-Original request: {intent.get('original_input', '')}
+CRITICAL RULES:
+1. You MUST stay faithful to what the user actually requested
+2. Do NOT add unrelated content or change the subject
+3. If the user's request is vague (like "yeah" or "okay"), just describe a simple, neutral scene
+4. Add visual details (camera angle, lighting) but keep the SUBJECT the same as what user requested
 
-Create a detailed, vivid video prompt that:
-1. Describes the visual scene clearly
-2. Includes camera movement if appropriate
-3. Specifies lighting and atmosphere
-4. Is optimized for AI video generation
+User's original request: "{original_input}"
 
-Return ONLY the prompt text, no explanations."""
+Extracted intent:
+- Topic: {intent.get('topic', 'general')}
+- Type: {intent.get('video_type', 'short video')}
+- Style: {intent.get('style', 'cinematic')}
+- Mood: {intent.get('mood', 'neutral')}
+
+Generate a video prompt that:
+1. Matches the user's request exactly
+2. Adds appropriate visual details (camera movement, lighting)
+3. Is 1-3 sentences long
+4. Does NOT invent new subjects or stories
+
+Return ONLY the prompt text."""
 
             response = self.client.models.generate_content(
                 model="gemini-2.5-flash",

@@ -22,11 +22,12 @@ class Task:
         self.message = "Task created"
         self.result: Optional[Dict[str, Any]] = None
         self.error: Optional[str] = None
+        self.transcription: Optional[str] = None  # Store transcription
         self.created_at = datetime.now()
         self.updated_at = datetime.now()
     
     def to_dict(self) -> Dict[str, Any]:
-        return {
+        result = {
             "task_id": self.id,
             "status": self.status.value,
             "phase": self.phase.value,
@@ -37,6 +38,10 @@ class Task:
             "created_at": self.created_at.isoformat(),
             "updated_at": self.updated_at.isoformat()
         }
+        # Include transcription if available
+        if self.transcription:
+            result["transcription"] = self.transcription
+        return result
 
 
 class TaskManager:
@@ -139,6 +144,11 @@ class TaskManager:
                     progress=update.get("progress", 0),
                     message=update.get("message", "")
                 )
+                
+                # Save transcription to task if present
+                if update.get("data") and update["data"].get("transcription"):
+                    task.transcription = update["data"]["transcription"]
+                
                 # Notify WebSocket subscribers
                 await self.notify_subscribers(task_id, {
                     "type": "progress",

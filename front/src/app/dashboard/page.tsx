@@ -168,8 +168,8 @@ export default function DashboardPage() {
       setTaskStatus(data);
       
       // Save transcription if available
-      if (data.data?.transcription) {
-        setTranscription(data.data.transcription);
+      if (data.transcription) {
+        setTranscription(data.transcription);
       }
       
       // Update phase based on task status
