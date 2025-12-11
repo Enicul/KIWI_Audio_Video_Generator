@@ -106,7 +106,7 @@ Output valid JSON format with scenes array."""
 Topic: {topic}
 Style: {style}
 
-Create 1-2 scenes that tell a compelling story.
+Create 4 scenes that tell a compelling story.
 Output ONLY valid JSON with this EXACT structure (no extra text):
 
 {{
