@@ -80,20 +80,7 @@ class TaskManager:
         task = self.tasks.get(task_id)
         if not task:
             return
-        
-        if status is not None:
-            task.status = status
-        if phase is not None:
-            task.phase = phase
-        if progress is not None:
-            task.progress = progress
-        if message is not None:
-            task.message = message
-        if result is not None:
-            task.result = result
-        if error is not None:
-            task.error = error
-        
+
         task.updated_at = datetime.now()
     
     def subscribe(self, task_id: str, handler: Callable):
@@ -201,7 +188,6 @@ class TaskManager:
     def start_task_async(self, task_id: str, processor: Callable):
         """Start a task in the background"""
         async_task = asyncio.create_task(self.run_task(task_id, processor))
-        self._running_tasks[task_id] = async_task
         return async_task
     
     def get_all_tasks(self) -> List[Dict[str, Any]]:
