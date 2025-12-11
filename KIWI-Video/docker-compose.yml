@@ -1,0 +1,32 @@
+version: '3.8'
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - GCP_PROJECT_ID=${GCP_PROJECT_ID}
+      - GCS_BUCKET=${GCS_BUCKET}
+      - ELEVENLABS_API_KEY=${ELEVENLABS_API_KEY}
+      - GOOGLE_APPLICATION_CREDENTIALS=/app/config/service-account.json
+      - WORKSPACE_DIR=/app/workspaces
+      - LOG_LEVEL=INFO
+    volumes:
+      - ./workspaces:/app/workspaces
+      - ./config:/app/config:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+volumes:
+  workspaces:
+    driver: local
+
