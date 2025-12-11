@@ -1,6 +1,6 @@
 """
 Video Agent - Generates videos using Veo
-Handles the actual video generation process
+Handles the actual video generation process with retry support
 """
 from typing import Any, Dict, Optional
 from pathlib import Path
@@ -12,7 +12,7 @@ from .base import BaseAgent
 class VideoAgent(BaseAgent):
     """
     Agent responsible for video generation.
-    Uses Veo 2 to create videos from prompts.
+    Uses Veo 2 to create videos from prompts with retry support.
     """
     
     def __init__(self):
@@ -25,6 +25,7 @@ class VideoAgent(BaseAgent):
         self._initialized = False
         self.output_dir = Path("generated/videos")
         self.output_dir.mkdir(parents=True, exist_ok=True)
+        self.max_retries = 2
     
     def initialize(self, client, api_key: str):
         """Initialize with Gemini client and API key"""
@@ -34,7 +35,7 @@ class VideoAgent(BaseAgent):
     
     async def process(self, input_data: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Process prompt and generate video.
+        Process prompt and generate video with retry support.
         
         Input:
             prompt: Video generation prompt
@@ -57,6 +58,26 @@ class VideoAgent(BaseAgent):
         
         if not self._initialized or not self.client:
             return {"success": False, "error": "VideoAgent not initialized"}
+        
+        # Try with retries
+        last_error = None
+        for attempt in range(self.max_retries + 1):
+            if attempt > 0:
+                await self.update_progress(60, f"Retrying video generation (attempt {attempt + 1})...")
+                await asyncio.sleep(5)  # Brief pause before retry
+            
+            result = await self._generate_video(prompt, task_id)
+            
+            if result.get("success"):
+                return result
+            
+            last_error = result.get("error", "Unknown error")
+            print(f"Video generation attempt {attempt + 1} failed: {last_error}")
+        
+        return {"success": False, "error": f"Video generation failed after {self.max_retries + 1} attempts: {last_error}"}
+    
+    async def _generate_video(self, prompt: str, task_id: str) -> Dict[str, Any]:
+        """Internal method to generate a single video"""
         
         try:
             from google.genai import types
@@ -102,7 +123,12 @@ class VideoAgent(BaseAgent):
                         generated_videos = operation.result.generated_videos
             
             if not generated_videos:
-                return {"success": False, "error": "No video generated"}
+                # Check for errors in operation
+                error_info = ""
+                if hasattr(operation, 'error') and operation.error:
+                    error_info = f": {operation.error}"
+                print(f"[VideoAgent] No videos generated{error_info}")
+                return {"success": False, "error": f"No video generated{error_info}"}
             
             # Download the video
             generated_video = generated_videos[0]

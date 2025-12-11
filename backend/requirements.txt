@@ -19,6 +19,9 @@ google-genai>=1.0.0
 # Environment
 python-dotenv==1.0.1
 
+# Video Processing (for multi-scene stitching)
+moviepy==1.0.3
+
 # CORS
 python-multipart==0.0.19
 

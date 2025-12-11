@@ -23,6 +23,12 @@ interface ConversationState {
   messages: Message[];
 }
 
+interface Scene {
+  scene_number: number;
+  title: string;
+  description: string;
+}
+
 interface TaskStatus {
   task_id: string;
   status: string;
@@ -30,9 +36,16 @@ interface TaskStatus {
   progress: number;
   message: string;
   transcription?: string;
+  data?: {
+    scenes?: Scene[];
+    is_multi_scene?: boolean;
+  };
   result?: {
     video_url?: string;
     video_prompt?: string;
+    is_multi_scene?: boolean;
+    total_scenes?: number;
+    scenes_generated?: number;
   };
   error?: string;
 }
@@ -540,6 +553,32 @@ export default function DashboardPage() {
           </div>
         )}
 
+        {/* Multi-scene indicator */}
+        {taskStatus?.data?.is_multi_scene && taskStatus?.data?.scenes && (
+          <div className="bg-kiwi-gray-900 border border-kiwi-gray-700 rounded-xl p-4 mb-6">
+            <div className="flex items-center gap-2 mb-3">
+              <span className="text-lg">📽️</span>
+              <span className="text-kiwi-white font-medium">
+                Multi-scene Story: {taskStatus.data.scenes.length} scenes
+              </span>
+            </div>
+            <div className="space-y-2">
+              {taskStatus.data.scenes.map((scene, i) => (
+                <div key={i} className="flex items-center gap-2 text-sm">
+                  <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs ${
+                    taskStatus.progress > 40 + (i / taskStatus.data!.scenes!.length) * 50
+                      ? "bg-green-600 text-white"
+                      : "bg-kiwi-gray-700 text-kiwi-gray-400"
+                  }`}>
+                    {i + 1}
+                  </span>
+                  <span className="text-kiwi-gray-300">{scene.title}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Progress */}
         {taskStatus && (
           <div className="bg-kiwi-gray-900 border border-kiwi-gray-800 rounded-xl p-6 mb-6">
@@ -573,8 +612,19 @@ export default function DashboardPage() {
     <div className="flex flex-col items-center justify-center min-h-screen px-6 py-20">
       <div className="w-full max-w-2xl">
         <h2 className="text-2xl font-semibold text-kiwi-white mb-6 text-center">
-          🎉 Your Video is Ready!
+          🎉 {taskStatus?.result?.is_multi_scene 
+            ? `${taskStatus.result.scenes_generated}-Scene Video Ready!` 
+            : "Your Video is Ready!"}
         </h2>
+
+        {/* Multi-scene badge */}
+        {taskStatus?.result?.is_multi_scene && (
+          <div className="flex justify-center mb-4">
+            <span className="px-3 py-1 bg-green-600/20 text-green-400 text-sm rounded-full border border-green-600/30">
+              📽️ Multi-scene Story • {taskStatus.result.scenes_generated} scenes combined
+            </span>
+          </div>
+        )}
 
         {/* Video Player */}
         {taskStatus?.result?.video_url ? (
@@ -601,11 +651,13 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* Prompt */}
+        {/* Prompt - with scene breakdown for multi-scene */}
         {taskStatus?.result?.video_prompt && (
           <div className="bg-kiwi-gray-900 border border-kiwi-gray-700 rounded-xl p-4 mb-6">
-            <p className="text-sm text-kiwi-gray-400 mb-1">🎨 Generated prompt:</p>
-            <p className="text-kiwi-white text-sm">{taskStatus.result.video_prompt}</p>
+            <p className="text-sm text-kiwi-gray-400 mb-2">
+              🎨 {taskStatus.result.is_multi_scene ? "Scene Prompts:" : "Generated prompt:"}
+            </p>
+            <p className="text-kiwi-white text-sm whitespace-pre-wrap">{taskStatus.result.video_prompt}</p>
           </div>
         )}
 
