@@ -14,7 +14,7 @@ from models.schemas import (
     TaskPhase
 )
 from services.task_manager import task_manager
-from agents.orchestrator import orchestrator
+from agents import orchestrator
 
 router = APIRouter()
 

@@ -1,236 +1,146 @@
 """
-Orchestrator Agent - Coordinates all other agents
-Uses Gemini for intent understanding and Veo for video generation
+Orchestrator Agent - Coordinates all agents in Multi-Agent Architecture
 """
 from typing import Any, Dict, Optional, Callable
 from datetime import datetime
-import asyncio
-import base64
+import os
+
+from google import genai
 
 from .base import BaseAgent
-from models.schemas import TaskStatus, TaskPhase
-from services.gemini_service import gemini_service
+from .speech_agent import speech_agent
+from .intent_agent import intent_agent
+from .prompt_agent import prompt_agent
+from .video_agent import video_agent
+from models.schemas import TaskPhase
 
 
-class OrchestratorAgent:
+class OrchestratorAgent(BaseAgent):
     """
-    Main coordinator that manages the video generation pipeline.
-    Now integrated with Gemini for intelligent processing.
+    Master agent coordinating the video generation pipeline.
+    Pipeline: SpeechAgent → IntentAgent → PromptAgent → VideoAgent
     """
     
     def __init__(self):
-        self.name = "Orchestrator"
-        self.agents: Dict[str, BaseAgent] = {}
-        self._on_status_update: Optional[Callable] = None
-        self._current_phase = TaskPhase.UNDERSTANDING
-        self._progress = 0
-        
-        # Initialize Gemini service
-        gemini_service.initialize()
+        super().__init__(name="Orchestrator", description="Coordinates all agents")
+        self._status_callback: Optional[Callable] = None
+        self._initialized = False
+        self.client = None
+        self.api_key = None
     
-    def register_agent(self, agent: BaseAgent):
-        """Register an agent"""
-        self.agents[agent.name] = agent
+    def initialize(self, api_key: Optional[str] = None):
+        """Initialize all agents"""
+        self.api_key = api_key or os.getenv("GEMINI_API_KEY")
+        
+        if not self.api_key:
+            print("Warning: No API key. Agents in fallback mode.")
+            return False
+        
+        try:
+            self.client = genai.Client(api_key=self.api_key)
+            speech_agent.initialize(self.client)
+            intent_agent.initialize(self.client)
+            prompt_agent.initialize(self.client)
+            video_agent.initialize(self.client, self.api_key)
+            self._initialized = True
+            print("✓ Orchestrator initialized with 4 agents")
+            return True
+        except Exception as e:
+            print(f"Failed to initialize: {e}")
+            return False
     
     def set_status_handler(self, handler: Callable):
-        """Set callback for status updates"""
-        self._on_status_update = handler
+        self._status_callback = handler
     
-    async def update_status(
-        self, 
-        phase: TaskPhase, 
-        progress: int, 
-        message: str,
-        data: Optional[Dict] = None
-    ):
-        """Send status update"""
-        self._current_phase = phase
-        self._progress = progress
-        
-        if self._on_status_update:
-            await self._on_status_update({
-                "phase": phase.value,
-                "progress": progress,
-                "message": message,
-                "data": data,
-                "timestamp": datetime.now().isoformat()
+    async def update_status(self, phase: TaskPhase, progress: int, message: str, data: Optional[Dict] = None):
+        if self._status_callback:
+            await self._status_callback({
+                "phase": phase.value, "progress": progress, 
+                "message": message, "data": data or {}
             })
     
-    async def process_video_request(
-        self, 
-        task_id: str,
-        audio_data: Optional[str] = None,
-        text_input: Optional[str] = None
-    ) -> Dict[str, Any]:
-        """
-        Main pipeline for processing video generation request.
-        
-        Flow:
-        1. Understanding Phase: Parse user intent using Gemini
-        2. Planning Phase: Create video script using Gemini
-        3. Execution Phase: Generate video (placeholder for Phase 3)
-        """
-        try:
-            # ============== Phase 1: Understanding ==============
-            await self.update_status(
-                TaskPhase.UNDERSTANDING, 
-                5, 
-                "Processing your input..."
-            )
-            
-            # Get the input text
-            user_input = text_input
-            
-            # If audio data is provided, transcribe it
-            if audio_data and not text_input:
-                await self.update_status(
-                    TaskPhase.UNDERSTANDING, 
-                    10, 
-                    "Transcribing your voice with AI..."
-                )
-                user_input = await self._transcribe_audio(audio_data)
-                
-                if user_input:
-                    await self.update_status(
-                        TaskPhase.UNDERSTANDING, 
-                        15, 
-                        f"Heard: \"{user_input[:80]}{'...' if len(user_input) > 80 else ''}\"",
-                        data={"transcription": user_input}
-                    )
-            
-            if not user_input:
-                error_msg = "Could not understand audio. Please try speaking more clearly or use text input."
-                await self.update_status(
-                    TaskPhase.UNDERSTANDING,
-                    0,
-                    error_msg
-                )
-                return {
-                    "success": False,
-                    "task_id": task_id,
-                    "error": error_msg
-                }
-            
-            await self.update_status(
-                TaskPhase.UNDERSTANDING, 
-                20, 
-                "Analyzing your request with AI..."
-            )
-            
-            # Use Gemini to understand intent
-            intent = await gemini_service.understand_intent(user_input)
-            
-            # Safely extract intent values
-            topic = intent.get('topic') or 'your topic'
-            video_type = intent.get('video_type') or 'video'
-            duration = intent.get('duration') or 8
-            
-            await self.update_status(
-                TaskPhase.UNDERSTANDING, 
-                35, 
-                f"Understood: Creating a {duration}s {video_type} about {topic[:50]}"
-            )
-            
-            # ============== Phase 2: Planning ==============
-            await self.update_status(
-                TaskPhase.PLANNING, 
-                40, 
-                "Creating optimized video prompt..."
-            )
-            
-            # Use Gemini to create video prompt
-            video_prompt = await gemini_service.generate_video_prompt(intent)
-            
-            if not video_prompt:
-                video_prompt = f"A cinematic video about {topic}"
-            
-            await self.update_status(
-                TaskPhase.PLANNING, 
-                55, 
-                f"Video prompt ready: {video_prompt[:60]}..."
-            )
-            
-            # ============== Phase 3: Execution ==============
-            await self.update_status(
-                TaskPhase.EXECUTION, 
-                60, 
-                "Starting video generation with Veo 2... (this may take 1-3 minutes)"
-            )
-            
-            # Progress callback for video generation
-            async def on_video_progress(progress: int, message: str):
-                await self.update_status(TaskPhase.EXECUTION, progress, message)
-            
-            # Generate video using Veo
-            video_path = await gemini_service.generate_video(
-                prompt=video_prompt,
-                task_id=task_id,
-                on_progress=on_video_progress
-            )
-            
-            video_url = None
-            if video_path:
-                video_url = gemini_service.get_video_url(task_id)
-                await self.update_status(
-                    TaskPhase.EXECUTION, 
-                    95, 
-                    "Video generated successfully!"
-                )
-            else:
-                await self.update_status(
-                    TaskPhase.EXECUTION, 
-                    95, 
-                    "Video generation failed. Your API may not have Veo access."
-                )
-            
-            # ============== Complete ==============
-            await self.update_status(
-                TaskPhase.COMPLETED, 
-                100, 
-                "Video generation complete!" if video_url else "Process completed!"
-            )
-            
-            return {
-                "success": True,
-                "task_id": task_id,
-                "intent": intent,
-                "video_prompt": video_prompt,
-                "video_url": video_url,
-                "message": "Video generation pipeline completed successfully"
-            }
-            
-        except Exception as e:
-            await self.update_status(
-                self._current_phase,
-                self._progress,
-                f"Error: {str(e)}"
-            )
-            return {
-                "success": False,
-                "task_id": task_id,
-                "error": str(e)
-            }
+    async def process(self, input_data: Dict[str, Any]) -> Dict[str, Any]:
+        return await self.process_video_request(
+            input_data.get("task_id", ""),
+            input_data.get("audio_data"),
+            input_data.get("text_input")
+        )
     
-    async def _transcribe_audio(self, audio_base64: str) -> str:
-        """
-        Transcribe audio to text using Gemini multimodal.
-        """
+    async def process_video_request(
+        self, task_id: str, audio_data: Optional[str] = None, text_input: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """Pipeline: Audio → Text → Intent → Prompt → Video"""
         try:
-            # Use Gemini for transcription
-            transcription = await gemini_service.transcribe_audio(audio_base64)
+            transcription = ""
             
-            if transcription and len(transcription.strip()) > 0:
-                return transcription.strip()
-            else:
-                print("Transcription returned empty, audio may be too short or unclear")
+            # Step 1: SpeechAgent
+            if audio_data:
+                await self.update_status(TaskPhase.UNDERSTANDING, 5, "SpeechAgent processing...")
                 
+                async def progress_cb(p, m): await self.update_status(TaskPhase.UNDERSTANDING, p, m)
+                speech_agent.set_progress_handler(progress_cb)
+                
+                result = await speech_agent.run({"audio_data": audio_data})
+                if not result.get("success"):
+                    return {"success": False, "error": result.get("error", "Speech failed")}
+                transcription = result.get("transcription", "")
+            else:
+                transcription = text_input or ""
+            
+            if not transcription:
+                await self.update_status(TaskPhase.UNDERSTANDING, 0, "No input detected")
+                return {"success": False, "error": "No transcription"}
+            
+            await self.update_status(
+                TaskPhase.UNDERSTANDING, 20, f"Heard: \"{transcription[:60]}...\"",
+                data={"transcription": transcription}
+            )
+            
+            # Step 2: IntentAgent
+            await self.update_status(TaskPhase.UNDERSTANDING, 25, "IntentAgent analyzing...")
+            
+            async def intent_progress(p, m): await self.update_status(TaskPhase.UNDERSTANDING, p, m)
+            intent_agent.set_progress_handler(intent_progress)
+            
+            result = await intent_agent.run({"text": transcription})
+            if not result.get("success"):
+                return {"success": False, "error": result.get("error", "Intent failed")}
+            intent = result.get("intent", {})
+            
+            await self.update_status(TaskPhase.UNDERSTANDING, 35, f"Intent: {intent.get('video_type')} about {intent.get('topic', '')[:30]}")
+            
+            # Step 3: PromptAgent
+            await self.update_status(TaskPhase.PLANNING, 40, "PromptAgent creating prompt...")
+            
+            async def prompt_progress(p, m): await self.update_status(TaskPhase.PLANNING, p, m)
+            prompt_agent.set_progress_handler(prompt_progress)
+            
+            result = await prompt_agent.run({"intent": intent})
+            if not result.get("success"):
+                return {"success": False, "error": result.get("error", "Prompt failed")}
+            video_prompt = result.get("prompt", "")
+            
+            await self.update_status(TaskPhase.PLANNING, 55, f"Prompt: {video_prompt[:50]}...")
+            
+            # Step 4: VideoAgent
+            await self.update_status(TaskPhase.EXECUTION, 60, "VideoAgent starting Veo 2...")
+            
+            async def video_progress(p, m): await self.update_status(TaskPhase.EXECUTION, p, m)
+            video_agent.set_progress_handler(video_progress)
+            
+            result = await video_agent.run({"prompt": video_prompt, "task_id": task_id})
+            
+            video_url = result.get("video_url") if result.get("success") else None
+            
+            await self.update_status(TaskPhase.COMPLETED, 100, "All agents completed!")
+            
+            return {
+                "success": True, "video_url": video_url, "video_prompt": video_prompt,
+                "transcription": transcription, "intent": intent
+            }
+            
         except Exception as e:
-            print(f"Audio transcription failed: {e}")
-        
-        # If transcription fails, return None to indicate failure
-        # The caller will handle this appropriately
-        return ""
+            return {"success": False, "error": str(e)}
 
 
-# Singleton instance
 orchestrator = OrchestratorAgent()

@@ -9,6 +9,10 @@ import uvicorn
 from config import settings
 from api.routes import router
 from api.websocket import websocket_endpoint
+from agents import orchestrator
+
+# Initialize orchestrator with all agents
+orchestrator.initialize(settings.GEMINI_API_KEY)
 
 # Create FastAPI app
 app = FastAPI(

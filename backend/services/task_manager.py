@@ -74,7 +74,8 @@ class TaskManager:
         progress: Optional[int] = None,
         message: Optional[str] = None,
         result: Optional[Dict] = None,
-        error: Optional[str] = None
+        error: Optional[str] = None,
+        transcription: Optional[str] = None
     ):
         """Update task state"""
         task = self.tasks.get(task_id)
@@ -93,6 +94,8 @@ class TaskManager:
             task.result = result
         if error is not None:
             task.error = error
+        if transcription is not None:
+            task.transcription = transcription
         
         task.updated_at = datetime.now()
     
