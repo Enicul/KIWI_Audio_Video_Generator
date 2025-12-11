@@ -9,6 +9,7 @@ from google import genai
 
 from .base import BaseAgent
 from .speech_agent import speech_agent
+from .clarification_agent import clarification_agent
 from .intent_agent import intent_agent
 from .prompt_agent import prompt_agent
 from .video_agent import video_agent
@@ -39,11 +40,12 @@ class OrchestratorAgent(BaseAgent):
         try:
             self.client = genai.Client(api_key=self.api_key)
             speech_agent.initialize(self.client)
+            clarification_agent.initialize(self.client)
             intent_agent.initialize(self.client)
             prompt_agent.initialize(self.client)
             video_agent.initialize(self.client, self.api_key)
             self._initialized = True
-            print("✓ Orchestrator initialized with 4 agents")
+            print("✓ Orchestrator initialized with 5 agents")
             return True
         except Exception as e:
             print(f"Failed to initialize: {e}")

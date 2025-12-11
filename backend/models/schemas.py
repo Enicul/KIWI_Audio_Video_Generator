@@ -91,3 +91,33 @@ class VideoIntent(BaseModel):
     key_elements: List[str] = Field(default_factory=list, description="Important visual elements")
     original_input: Optional[str] = None
 
+
+# ============== Conversation Schemas ==============
+
+class ChatMessage(BaseModel):
+    """Single chat message"""
+    role: str = Field(..., description="user or assistant")
+    content: str = Field(..., description="Message content")
+    msg_type: str = Field("text", description="text, audio, or system")
+
+
+class ConversationRequest(BaseModel):
+    """Request to send a message in conversation"""
+    conversation_id: Optional[str] = Field(None, description="Existing conversation ID")
+    message: Optional[str] = Field(None, description="Text message")
+    audio_data: Optional[str] = Field(None, description="Base64 encoded audio")
+    confirm_generate: bool = Field(False, description="User confirms to start generation")
+
+
+class ConversationResponse(BaseModel):
+    """Response from conversation endpoint"""
+    conversation_id: str
+    state: str
+    ai_response: str
+    needs_clarification: bool
+    questions: List[str] = []
+    accumulated_intent: Dict[str, Any] = {}
+    ready_to_generate: bool = False
+    task_id: Optional[str] = None
+    messages: List[Dict[str, Any]] = []
+
