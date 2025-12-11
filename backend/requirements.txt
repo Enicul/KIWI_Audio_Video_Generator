@@ -1,0 +1,27 @@
+# Web Framework
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+
+# WebSocket
+websockets==14.1
+
+# Async HTTP
+httpx==0.28.1
+aiohttp==3.11.11
+
+# Data Validation
+pydantic==2.10.4
+pydantic-settings==2.7.0
+
+# Google Gemini (new SDK with Veo video generation)
+google-genai>=1.0.0
+
+# Environment
+python-dotenv==1.0.1
+
+# CORS
+python-multipart==0.0.19
+
+# UUID
+uuid==1.30
+
