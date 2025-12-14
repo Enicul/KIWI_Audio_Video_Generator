@@ -16,7 +16,7 @@ from config import settings
 class GeminiService:
     """
     Service for interacting with Google Gemini API.
-    Uses the new google-genai SDK for Veo video generation.
+    Uses the new google-genai SDK for Veo 3 video generation.
     """
     
     def __init__(self):
@@ -239,7 +239,7 @@ Return ONLY the prompt text."""
         on_progress: Optional[callable] = None
     ) -> Optional[str]:
         """
-        Generate a video using Veo 2.
+        Generate a video using Veo 3.
         
         Args:
             prompt: Video description prompt
@@ -256,12 +256,12 @@ Return ONLY the prompt text."""
         try:
             from google.genai import types
             
-            print(f"Starting video generation with Veo 2...")
+            print(f"Starting video generation with Veo 3...")
             print(f"Prompt: {prompt[:100]}...")
             
-            # Start video generation with Veo 2
+            # Start video generation with Veo 3
             operation = self.client.models.generate_videos(
-                model="veo-2.0-generate-001",
+                model="veo-3.0-generate-001",
                 prompt=prompt,
                 config=types.GenerateVideosConfig(
                     person_generation="allow_adult",

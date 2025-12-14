@@ -1,6 +1,6 @@
 """
 Orchestrator Agent - Coordinates all agents in Multi-Agent Architecture
-Supports both single-scene and multi-scene video generation
+Supports both single-scene and multi-scene video generation with visual consistency
 """
 from typing import Any, Dict, List, Optional, Callable
 from datetime import datetime
@@ -13,6 +13,7 @@ from .speech_agent import speech_agent
 from .clarification_agent import clarification_agent
 from .intent_agent import intent_agent
 from .script_analyzer_agent import script_analyzer_agent
+from .image_agent import image_agent
 from .prompt_agent import prompt_agent
 from .video_agent import video_agent
 from .video_stitch_agent import video_stitch_agent
@@ -24,8 +25,11 @@ class OrchestratorAgent(BaseAgent):
     Master agent coordinating the video generation pipeline.
     
     Single-scene: SpeechAgent → IntentAgent → PromptAgent → VideoAgent
-    Multi-scene:  SpeechAgent → IntentAgent → ScriptAnalyzerAgent 
-                  → [PromptAgent → VideoAgent] × N → VideoStitchAgent
+    Multi-scene (with visual consistency):
+        SpeechAgent → IntentAgent → ScriptAnalyzerAgent 
+        → ImageAgent (generate all first frames)
+        → [PromptAgent → VideoAgent (image-to-video)] × N 
+        → VideoStitchAgent
     """
     
     def __init__(self):
@@ -49,11 +53,12 @@ class OrchestratorAgent(BaseAgent):
             clarification_agent.initialize(self.client)
             intent_agent.initialize(self.client)
             script_analyzer_agent.initialize(self.client)
+            image_agent.initialize(self.client)  # NEW: Image generation
             prompt_agent.initialize(self.client)
             video_agent.initialize(self.client, self.api_key)
             # video_stitch_agent doesn't need client
             self._initialized = True
-            print("✓ Orchestrator initialized with 7 agents")
+            print("✓ Orchestrator initialized with 8 agents")
             return True
         except Exception as e:
             print(f"Failed to initialize: {e}")
@@ -131,22 +136,70 @@ class OrchestratorAgent(BaseAgent):
                 # Fallback to single scene
                 scenes = [{"scene_number": 1, "description": transcription, "title": "Main Scene"}]
                 is_multi_scene = False
+                visual_style = {}
             else:
                 scenes = result.get("scenes", [])
                 is_multi_scene = result.get("is_multi_scene", False)
+                visual_style = result.get("visual_style", {})
             
             total_scenes = len(scenes)
             
             if is_multi_scene:
+                # Log visual style for debugging
+                if visual_style:
+                    print(f"[Orchestrator] Visual style for consistency:")
+                    print(f"  - Character: {visual_style.get('main_character', 'Not defined')[:50]}...")
+                    print(f"  - Colors: {visual_style.get('color_palette', 'Not defined')}")
+                    print(f"  - Camera: {visual_style.get('camera_style', 'Not defined')}")
+                
                 await self.update_status(
                     TaskPhase.PLANNING, 35, 
-                    f"📽️ Multi-scene story detected: {total_scenes} scenes",
-                    data={"scenes": scenes, "is_multi_scene": True}
+                    f"📽️ Multi-scene story detected: {total_scenes} scenes with unified visual style",
+                    data={"scenes": scenes, "is_multi_scene": True, "visual_style": visual_style}
                 )
             else:
                 await self.update_status(TaskPhase.PLANNING, 35, "Single scene video")
             
-            # ========== Step 4: Generate Videos ==========
+            # ========== Step 4: Generate First-Frame Images (for multi-scene) ==========
+            scene_images = {}  # Map scene_number -> image_path
+            
+            if is_multi_scene and total_scenes > 1:
+                await self.update_status(
+                    TaskPhase.EXECUTION, 38,
+                    f"🎨 Generating {total_scenes} consistent first-frame images..."
+                )
+                
+                async def image_progress(p, m): 
+                    # Map to 38-48 range
+                    mapped = 38 + int(p * 0.1)
+                    await self.update_status(TaskPhase.EXECUTION, mapped, m)
+                
+                image_agent.set_progress_handler(image_progress)
+                
+                result = await image_agent.run({
+                    "scenes": scenes,
+                    "visual_style": visual_style,
+                    "task_id": task_id
+                })
+                
+                if result.get("success"):
+                    for img_info in result.get("images", []):
+                        if img_info.get("image_path"):
+                            scene_images[img_info["scene_number"]] = img_info["image_path"]
+                    
+                    print(f"[Orchestrator] Generated {len(scene_images)}/{total_scenes} first-frame images")
+                    await self.update_status(
+                        TaskPhase.EXECUTION, 48,
+                        f"✓ Generated {len(scene_images)} first-frame images for visual consistency"
+                    )
+                else:
+                    print(f"[Orchestrator] Image generation failed: {result.get('error')}")
+                    await self.update_status(
+                        TaskPhase.EXECUTION, 48,
+                        "⚠️ First-frame generation failed, using text-to-video fallback"
+                    )
+            
+            # ========== Step 5: Generate Videos ==========
             video_paths = []
             video_prompts = []
             
@@ -155,11 +208,11 @@ class OrchestratorAgent(BaseAgent):
                 scene_desc = scene.get("description", scene.get("title", f"Scene {scene_num}"))
                 
                 # Calculate progress for this scene
-                # Each scene gets equal portion of 40-90 range
-                scene_progress_start = 40 + int((i / total_scenes) * 50)
-                scene_progress_end = 40 + int(((i + 1) / total_scenes) * 50)
+                # Each scene gets equal portion of 50-90 range
+                scene_progress_start = 50 + int((i / total_scenes) * 40)
+                scene_progress_end = 50 + int(((i + 1) / total_scenes) * 40)
                 
-                # 4a: Generate prompt for this scene
+                # 5a: Generate prompt for this scene
                 await self.update_status(
                     TaskPhase.EXECUTION, 
                     scene_progress_start, 
@@ -175,19 +228,29 @@ class OrchestratorAgent(BaseAgent):
                     "total_scenes": total_scenes
                 }
                 
-                result = await prompt_agent.run({"intent": scene_intent})
+                # Pass visual style for consistency across scenes
+                result = await prompt_agent.run({
+                    "intent": scene_intent,
+                    "visual_style": visual_style,
+                    "scene_number": scene_num,
+                    "total_scenes": total_scenes
+                })
                 if not result.get("success"):
                     video_prompts.append(f"Scene {scene_num}: {scene_desc}")
                 else:
                     video_prompts.append(result.get("prompt", scene_desc))
                 
-                # 4b: Generate video for this scene
+                # 5b: Generate video for this scene
                 scene_task_id = f"{task_id}_scene{scene_num}"
+                
+                # Check if we have a first-frame image for this scene
+                first_frame_path = scene_images.get(scene_num)
+                generation_mode = "image-to-video" if first_frame_path else "text-to-video"
                 
                 await self.update_status(
                     TaskPhase.EXECUTION,
-                    scene_progress_start + 5,
-                    f"Scene {scene_num}/{total_scenes}: Generating video with Veo 2..."
+                    scene_progress_start + 2,
+                    f"Scene {scene_num}/{total_scenes}: Generating video ({generation_mode})..."
                 )
                 
                 # Progress callback for video generation
@@ -202,23 +265,31 @@ class OrchestratorAgent(BaseAgent):
                 
                 video_agent.set_progress_handler(video_progress)
                 
-                result = await video_agent.run({
+                # Generate video (with or without first-frame image)
+                video_input = {
                     "prompt": video_prompts[-1],
                     "task_id": scene_task_id
-                })
+                }
+                
+                if first_frame_path:
+                    video_input["image_path"] = first_frame_path
+                    print(f"[Orchestrator] Scene {scene_num}: Using first-frame image for consistency")
+                
+                result = await video_agent.run(video_input)
                 
                 if result.get("success") and result.get("video_path"):
                     video_paths.append(result.get("video_path"))
+                    mode_icon = "🖼️→🎬" if first_frame_path else "📝→🎬"
                     await self.update_status(
                         TaskPhase.EXECUTION,
                         scene_progress_end,
-                        f"Scene {scene_num}/{total_scenes}: ✓ Complete"
+                        f"Scene {scene_num}/{total_scenes}: {mode_icon} ✓ Complete"
                     )
                 else:
                     print(f"Scene {scene_num} generation failed: {result.get('error')}")
                     # Continue with other scenes
             
-            # ========== Step 5: Stitch Videos (if multi-scene) ==========
+            # ========== Step 6: Stitch Videos (if multi-scene) ==========
             if len(video_paths) == 0:
                 return {
                     "success": False,

@@ -104,3 +104,4 @@ Return ONLY the transcription, no additional commentary."""
 # Singleton instance
 speech_agent = SpeechAgent()
 
+

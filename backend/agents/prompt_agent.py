@@ -10,7 +10,7 @@ from .base import BaseAgent
 class PromptAgent(BaseAgent):
     """
     Agent responsible for generating video prompts.
-    Creates optimized prompts for Veo based on user intent.
+    Creates optimized prompts for Veo 3 based on user intent.
     """
     
     def __init__(self):
@@ -32,6 +32,9 @@ class PromptAgent(BaseAgent):
         
         Input:
             intent: dict with topic, style, mood, etc.
+            visual_style: dict with consistency info (for multi-scene)
+            scene_number: int (current scene number)
+            total_scenes: int (total number of scenes)
             
         Output:
             success: bool
@@ -39,42 +42,57 @@ class PromptAgent(BaseAgent):
             error: str (if failed)
         """
         intent = input_data.get("intent")
+        visual_style = input_data.get("visual_style", {})
+        scene_number = input_data.get("scene_number", 1)
+        total_scenes = input_data.get("total_scenes", 1)
         
         if not intent:
             return {"success": False, "error": "No intent provided"}
         
         if not self._initialized or not self.client:
-            return self._fallback_prompt(intent)
+            return self._fallback_prompt(intent, visual_style)
         
         try:
             await self.update_progress(45, "Creating video prompt...")
             
             original_input = intent.get('original_input', '')
             
-            prompt = f"""You are a video prompt generator. Your task is to convert the user's request into a clear video description for AI video generation.
+            # Build visual consistency section for multi-scene
+            visual_consistency_section = ""
+            if visual_style and total_scenes > 1:
+                visual_consistency_section = f"""
+VISUAL CONSISTENCY REQUIREMENTS (CRITICAL for multi-scene story):
+This is Scene {scene_number} of {total_scenes}. ALL scenes must have consistent visuals.
+
+- Main Character: {visual_style.get('main_character', 'Not specified')}
+- Color Palette: {visual_style.get('color_palette', 'Cinematic natural colors')}
+- Camera Style: {visual_style.get('camera_style', 'Steady cinematic shots')}
+- Lighting: {visual_style.get('lighting', 'Natural lighting')}
+- Visual Tone: {visual_style.get('visual_tone', 'Realistic and grounded')}
+
+You MUST incorporate these visual elements into the prompt to ensure consistency across all scenes.
+The character description is especially important - use the EXACT same character appearance."""
+            
+            prompt = f"""You are a video prompt generator for AI video generation (Veo 3).
+
+TASK: Convert the scene description into a detailed video prompt.
+{visual_consistency_section}
 
 CRITICAL RULES:
-1. You MUST stay faithful to what the user actually requested
-2. Do NOT add unrelated content or change the subject
-3. If the user's request is vague, describe a simple scene based on the topic
-4. Add visual details (camera angle, lighting) but keep the SUBJECT the same
+1. Stay faithful to the scene description
+2. Include specific visual details (camera angle, movement, lighting)
+3. If this is part of a multi-scene story, ALWAYS include the character description
+4. Keep the prompt 2-4 sentences long
+5. Focus on visual elements that can be generated
 
-User's original request: "{original_input}"
+Scene to generate: "{original_input}"
 
-Extracted intent:
-- Topic: {intent.get('topic', 'general')}
-- Type: {intent.get('video_type', 'short video')}
+Additional context:
 - Style: {intent.get('style', 'cinematic')}
 - Mood: {intent.get('mood', 'neutral')}
 - Key elements: {', '.join(intent.get('key_elements', []))}
 
-Generate a video prompt that:
-1. Matches the user's request exactly
-2. Adds appropriate visual details
-3. Is 1-3 sentences long
-4. Does NOT invent new subjects
-
-Return ONLY the prompt text."""
+Generate the video prompt now. Return ONLY the prompt text, no explanation."""
 
             response = self.client.models.generate_content(
                 model="gemini-2.5-flash",
@@ -82,11 +100,11 @@ Return ONLY the prompt text."""
             )
             
             if not response or not response.text:
-                return self._fallback_prompt(intent)
+                return self._fallback_prompt(intent, visual_style)
             
             video_prompt = response.text.strip()
             
-            await self.send_message(f"Prompt ready: {video_prompt[:50]}...")
+            await self.send_message(f"Scene {scene_number} prompt ready")
             
             return {
                 "success": True,
@@ -94,15 +112,24 @@ Return ONLY the prompt text."""
             }
             
         except Exception as e:
-            return self._fallback_prompt(intent)
+            return self._fallback_prompt(intent, visual_style)
     
-    def _fallback_prompt(self, intent: Dict[str, Any]) -> Dict[str, Any]:
+    def _fallback_prompt(self, intent: Dict[str, Any], visual_style: Dict[str, Any] = None) -> Dict[str, Any]:
         """Create a simple video prompt without API"""
         topic = intent.get("topic", "beautiful scene")
         style = intent.get("style", "cinematic")
         mood = intent.get("mood", "engaging")
         
-        prompt = f"A {style} video showing {topic}, {mood} atmosphere, high quality, smooth camera movement"
+        # Add visual consistency elements if available
+        character_desc = ""
+        if visual_style and visual_style.get("main_character"):
+            character_desc = f", featuring {visual_style.get('main_character')}"
+        
+        color_style = ""
+        if visual_style and visual_style.get("color_palette"):
+            color_style = f", {visual_style.get('color_palette')}"
+        
+        prompt = f"A {style} video showing {topic}{character_desc}, {mood} atmosphere{color_style}, high quality, smooth camera movement"
         
         return {
             "success": True,
@@ -112,4 +139,5 @@ Return ONLY the prompt text."""
 
 # Singleton instance
 prompt_agent = PromptAgent()
+
 

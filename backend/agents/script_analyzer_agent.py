@@ -66,12 +66,20 @@ Rules for scene detection:
 3. Maximum 5 scenes for practical video generation
 4. Each scene should be 5-8 seconds when generated
 
-If multi-scene, break it down into logical segments.
+IMPORTANT: For multi-scene stories, you MUST define a consistent visual style that applies to ALL scenes.
+This ensures visual continuity when the videos are stitched together.
 
 Return JSON:
 {{
     "is_multi_scene": true/false,
     "reasoning": "why you made this decision",
+    "visual_style": {{
+        "main_character": "Detailed description of the main character's appearance (age, gender, hair color/style, clothing, distinctive features). Be VERY specific so all scenes show the same person.",
+        "color_palette": "Consistent color grading (e.g., 'warm golden tones', 'cool blue-gray', 'vibrant saturated colors')",
+        "camera_style": "Consistent camera approach (e.g., 'steady cinematic shots', 'handheld documentary style', 'smooth tracking shots')",
+        "lighting": "Consistent lighting mood (e.g., 'soft natural daylight', 'dramatic shadows', 'warm indoor lighting')",
+        "visual_tone": "Overall visual feeling (e.g., 'realistic and grounded', 'dreamy and soft', 'high contrast dramatic')"
+    }},
     "scenes": [
         {{
             "scene_number": 1,
@@ -84,7 +92,7 @@ Return JSON:
     "total_estimated_duration": number
 }}
 
-For single scene, return just one scene in the array.
+For single scene, still include visual_style but it can be simpler.
 Return ONLY valid JSON."""
 
             response = self.client.models.generate_content(
@@ -115,13 +123,17 @@ Return ONLY valid JSON."""
                 f"Detected {'multi-scene story' if is_multi_scene else 'single scene'}: {len(scenes)} scene(s)"
             )
             
+            # Extract visual style for consistency
+            visual_style = result.get("visual_style", {})
+            
             return {
                 "success": True,
                 "is_multi_scene": is_multi_scene,
                 "scenes": scenes,
                 "total_scenes": len(scenes),
                 "reasoning": result.get("reasoning", ""),
-                "total_estimated_duration": result.get("total_estimated_duration", len(scenes) * 8)
+                "total_estimated_duration": result.get("total_estimated_duration", len(scenes) * 8),
+                "visual_style": visual_style
             }
             
         except Exception as e:
@@ -148,4 +160,5 @@ Return ONLY valid JSON."""
 
 # Singleton instance
 script_analyzer_agent = ScriptAnalyzerAgent()
+
 

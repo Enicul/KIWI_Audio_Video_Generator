@@ -2,11 +2,11 @@
 
 **Voice-to-Video Generation Platform with Multi-Agent Architecture**
 
-Transform your voice or text descriptions into stunning AI-generated videos using Google's Veo 2 technology. KIWI-Video features intelligent clarification dialogs and automatic multi-scene story segmentation.
+Transform your voice or text descriptions into stunning AI-generated videos using Google's Veo 3 technology. KIWI-Video features intelligent clarification dialogs and automatic multi-scene story segmentation.
 
 ![Next.js](https://img.shields.io/badge/Next.js-15.2-black)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688)
-![Gemini](https://img.shields.io/badge/Gemini-Veo_2.0-4285F4)
+![Gemini](https://img.shields.io/badge/Gemini-Veo_3.0-4285F4)
 ![Python](https://img.shields.io/badge/Python-3.11+-3776AB)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.7-3178C6)
 
@@ -35,7 +35,7 @@ KIWI-Video/
 │   │   ├── intent_agent.py    # Text → Intent analysis
 │   │   ├── script_analyzer_agent.py # Scene segmentation
 │   │   ├── prompt_agent.py    # Intent → Video prompt
-│   │   ├── video_agent.py     # Prompt → Video (Veo 2)
+│   │   ├── video_agent.py     # Prompt → Video (Veo 3)
 │   │   ├── video_stitch_agent.py   # Multi-video concatenation
 │   │   └── orchestrator.py    # Agent coordinator
 │   ├── api/
@@ -101,7 +101,7 @@ KIWI-Video uses a **Multi-Agent Architecture** where specialized agents collabor
                               ▼                            ▼
                     ┌─────────────────┐          ┌─────────────────┐
                     │   VideoAgent    │          │   VideoAgent    │
-                    │   Veo 2 Gen     │          │   Veo 2 Gen     │
+                    │   Veo 3 Gen     │          │   Veo 3 Gen     │
                     └────────┬────────┘          └────────┬────────┘
                               │                            │
                               └────────────┬───────────────┘
@@ -122,7 +122,7 @@ KIWI-Video uses a **Multi-Agent Architecture** where specialized agents collabor
 | **IntentAgent** | Extracts structured intent (topic, style, mood) | Gemini 2.5 Flash |
 | **ScriptAnalyzerAgent** | Detects multi-scene narratives and segments | Gemini 2.5 Flash |
 | **PromptAgent** | Generates optimized video prompts | Gemini 2.5 Flash |
-| **VideoAgent** | Creates videos from prompts | Veo 2.0 |
+| **VideoAgent** | Creates videos from prompts | Veo 3.0 |
 | **VideoStitchAgent** | Concatenates multiple video clips | MoviePy |
 | **Orchestrator** | Coordinates the entire pipeline | Custom |
 
@@ -165,7 +165,7 @@ User Input (Voice/Text)
 - **Python 3.11+** (recommended: 3.13)
 - **Node.js 18+** (recommended: 20 LTS)
 - **npm** or **yarn**
-- **Google Gemini API Key** (with Veo 2 access)
+- **Google Gemini API Key** (with Veo 3 access)
 - **Clerk Account** (for authentication)
 
 ### 1. Clone the Repository
@@ -418,7 +418,7 @@ my_new_agent = MyNewAgent()
 - **FastAPI** - High-performance async web framework
 - **Uvicorn** - ASGI server
 - **Pydantic** - Data validation
-- **google-genai** - Gemini & Veo 2 SDK
+- **google-genai** - Gemini & Veo 3 SDK
 - **MoviePy** - Video processing
 - **WebSockets** - Real-time communication
 
@@ -433,7 +433,7 @@ my_new_agent = MyNewAgent()
 
 ## ⚠️ Known Limitations
 
-1. **Veo 2 Access** - Requires Google AI Studio Veo 2 access (not available in all regions)
+1. **Veo 3 Access** - Requires Google AI Studio Veo 3 access (not available in all regions)
 2. **Video Duration** - Maximum 8 seconds per scene
 3. **Generation Time** - Each scene takes 30-60 seconds to generate
 4. **API Quotas** - Subject to Gemini API rate limits
@@ -468,4 +468,5 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 <p align="center">
   Made with 💚 by the KIWI-Video Team
 </p>
+
 

@@ -13,7 +13,7 @@ aiohttp==3.11.11
 pydantic==2.10.4
 pydantic-settings==2.7.0
 
-# Google Gemini (new SDK with Veo video generation)
+# Google Gemini (new SDK with Veo 3 video generation)
 google-genai>=1.0.0
 
 # Environment
